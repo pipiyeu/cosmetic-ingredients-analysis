@@ -1,0 +1,464 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import { useSearchParams, useRouter } from "next/navigation";
+
+const manfaatLabels = [
+  "acne fighting",
+  "anti-aging",
+  "brightening",
+  "dark spots",
+  "good for oily skin",
+  "hydrating",
+  "redness reducing",
+  "reduces irritation",
+  "reduces large pores",
+  "scar healing",
+  "skin texture",
+];
+
+const efekSampingLabels = [
+  "acne trigger",
+  "drying",
+  "eczema",
+  "irritating",
+  "may worsen oily skin",
+  "rosacea",
+];
+
+const formatLabel = (label: string) => {
+  return label.replace(/\b\w/g, (char) => char.toUpperCase());
+};
+
+export default function AnalyzerPage() {
+  const searchParams = useSearchParams();
+  const router = useRouter();
+
+  const ingredients = searchParams.get("ingredients") || "";
+
+  const [results, setResults] = useState<string[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    if (!ingredients) {
+      setLoading(false);
+      setError("No ingredients were provided.");
+      return;
+    }
+
+    const analyzeIngredients = async () => {
+      try {
+        const response = await fetch("http://127.0.0.1:8000/predict", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            ingredients: ingredients,
+          }),
+        });
+
+        if (!response.ok) {
+          throw new Error("Prediction failed.");
+        }
+
+        const data = await response.json();
+
+        setResults(data.predictions || []);
+      } catch (err) {
+        console.error(err);
+        setError("Unable to connect to Mandali API.");
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    analyzeIngredients();
+  }, [ingredients]);
+
+  const manfaat = results.filter((label) =>
+    manfaatLabels.includes(label)
+  );
+
+  const efekSamping = results.filter((label) =>
+    efekSampingLabels.includes(label)
+  );
+
+  return (
+    <main className="min-h-screen bg-[#fff8fb] px-6 py-16 lg:px-10">
+
+      <div className="mx-auto max-w-6xl">
+
+        {/* =========================
+            HEADER
+        ========================== */}
+
+        <div className="text-center">
+
+          <div className="inline-flex items-center gap-2 rounded-full bg-[#fff0f6] px-4 py-2 text-sm font-medium text-[#c35f88]">
+            <span>✦</span>
+            Mandali AI Analysis
+          </div>
+
+          <h1 className="mt-6 text-4xl font-bold tracking-tight text-[#3d2630] sm:text-5xl">
+            Your Cosmetic
+            <span className="text-[#df6f9d]">
+              {" "}Insights
+            </span>
+          </h1>
+
+          <p className="mx-auto mt-5 max-w-2xl text-sm leading-7 text-[#765d67] sm:text-base">
+            Discover the potential benefits and side effects identified
+            from your cosmetic ingredients.
+          </p>
+
+        </div>
+
+
+        {/* =========================
+            LOADING
+        ========================== */}
+
+        {loading && (
+          <div className="mx-auto mt-12 max-w-4xl rounded-[2.5rem] border border-[#edcedb] bg-white p-12 text-center shadow-[0_20px_60px_rgba(195,95,136,0.10)]">
+
+            <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-[#fff0f6] text-2xl text-[#df6f9d]">
+              ✦
+            </div>
+
+            <h2 className="mt-6 text-xl font-semibold text-[#3d2630]">
+              Analyzing your ingredients...
+            </h2>
+
+            <p className="mt-2 text-sm text-[#927984]">
+              Please wait while Mandali processes your ingredients.
+            </p>
+
+          </div>
+        )}
+
+
+        {/* =========================
+            ERROR
+        ========================== */}
+
+        {!loading && error && (
+          <div className="mx-auto mt-12 max-w-4xl rounded-[2.5rem] border border-[#edcedb] bg-white p-10 text-center shadow-[0_20px_60px_rgba(195,95,136,0.08)]">
+
+            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-[#fff0f6] text-xl text-[#df6f9d]">
+              !
+            </div>
+
+            <h2 className="mt-5 text-lg font-semibold text-[#3d2630]">
+              Analysis Unavailable
+            </h2>
+
+            <p className="mt-2 text-sm text-[#927984]">
+              {error}
+            </p>
+
+            <button
+              onClick={() => router.push("/")}
+              className="mt-6 rounded-full bg-[#df6f9d] px-6 py-3 text-sm font-semibold text-white transition hover:bg-[#d45f91]"
+            >
+              Back to Home
+            </button>
+
+          </div>
+        )}
+
+
+        {/* =========================
+            RESULT
+        ========================== */}
+
+        {!loading && !error && (
+          <div className="mt-12">
+
+            {/* =====================
+                INGREDIENT CARD
+            ====================== */}
+
+            <div className="relative overflow-hidden rounded-[2.5rem] border border-[#edcedb] bg-white p-7 shadow-[0_20px_60px_rgba(195,95,136,0.10)] sm:p-9">
+
+              <div className="absolute -right-20 -top-20 h-52 w-52 rounded-full bg-[#f7b6ce]/20 blur-3xl" />
+
+              <div className="relative">
+
+                <div className="flex items-center justify-between gap-4">
+
+                  <div>
+
+                    <p className="text-xs font-semibold uppercase tracking-[0.15em] text-[#c35f88]">
+                      Ingredient Composition
+                    </p>
+
+                    <h2 className="mt-2 text-xl font-bold text-[#3d2630]">
+                      What we analyzed
+                    </h2>
+
+                  </div>
+
+                  <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[#fff0f6] text-[#df6f9d]">
+                    ✦
+                  </div>
+
+                </div>
+
+                <div className="mt-6 rounded-2xl bg-[#fff8fb] px-5 py-4">
+
+                  <p className="text-sm leading-7 text-[#765d67]">
+                    {ingredients}
+                  </p>
+
+                </div>
+
+              </div>
+
+            </div>
+
+
+            {/* =====================
+                SUMMARY
+            ====================== */}
+
+            <div className="mt-8 grid gap-5 sm:grid-cols-2">
+
+              {/* Benefits */}
+
+              <div className="rounded-[2rem] border border-[#cce8d6] bg-[#f4fbf6] p-6 shadow-[0_15px_40px_rgba(77,150,92,0.07)]">
+
+                <div className="flex items-center gap-4">
+
+                  <div className="flex h-12 w-12 items-center justify-center rounded-full bg-[#dcf4e3] text-xl text-[#4d965c]">
+                    ✨
+                  </div>
+
+                  <div>
+
+                    <p className="text-xs font-medium uppercase tracking-wider text-[#5b8f68]">
+                      Potential Benefits
+                    </p>
+
+                    <p className="mt-1 text-2xl font-bold text-[#315c3a]">
+                      {manfaat.length}
+                    </p>
+
+                  </div>
+
+                </div>
+
+              </div>
+
+
+              {/* Side Effects */}
+
+              <div className="rounded-[2rem] border border-[#f2cccc] bg-[#fff5f5] p-6 shadow-[0_15px_40px_rgba(190,70,70,0.07)]">
+
+                <div className="flex items-center gap-4">
+
+                  <div className="flex h-12 w-12 items-center justify-center rounded-full bg-[#fde1e1] text-xl text-[#c45b5b]">
+                    ⚠
+                  </div>
+
+                  <div>
+
+                    <p className="text-xs font-medium uppercase tracking-wider text-[#b35a5a]">
+                      Potential Side Effects
+                    </p>
+
+                    <p className="mt-1 text-2xl font-bold text-[#8f3d3d]">
+                      {efekSamping.length}
+                    </p>
+
+                  </div>
+
+                </div>
+
+              </div>
+
+            </div>
+
+
+            {/* =====================
+                BENEFITS
+            ====================== */}
+
+            <section className="mt-14">
+
+              <div className="mb-7">
+
+                <div className="flex items-center gap-3">
+
+                  <div className="flex h-11 w-11 items-center justify-center rounded-full bg-[#dcf4e3] text-[#4d965c]">
+                    ✨
+                  </div>
+
+                  <div>
+
+                    <p className="text-xs font-semibold uppercase tracking-wider text-[#5b8f68]">
+                      Positive Effects
+                    </p>
+
+                    <h2 className="text-2xl font-bold text-[#315c3a]">
+                      Potential Benefits
+                    </h2>
+
+                  </div>
+
+                </div>
+
+              </div>
+
+
+              {manfaat.length > 0 ? (
+
+                <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+
+                  {manfaat.map((label) => (
+
+                    <div
+                      key={label}
+                      className="group rounded-[1.5rem] border border-[#cce8d6] bg-[#f4fbf6] p-6 shadow-[0_12px_35px_rgba(77,150,92,0.07)] transition duration-300 hover:-translate-y-1 hover:border-[#acd9b8] hover:shadow-[0_18px_40px_rgba(77,150,92,0.12)]"
+                    >
+
+                      <div className="flex h-11 w-11 items-center justify-center rounded-full bg-[#dcf4e3] text-[#4d965c] transition group-hover:scale-105">
+                        ✓
+                      </div>
+
+                      <h3 className="mt-5 text-base font-semibold text-[#315c3a]">
+                        {formatLabel(label)}
+                      </h3>
+
+                    </div>
+
+                  ))}
+
+                </div>
+
+              ) : (
+
+                <div className="rounded-[2rem] border border-[#cce8d6] bg-[#f4fbf6] p-10 text-center">
+
+                  <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-[#dcf4e3] text-[#4d965c]">
+                    ✓
+                  </div>
+
+                  <p className="mt-4 text-sm text-[#5b8f68]">
+                    No potential benefits were detected.
+                  </p>
+
+                </div>
+
+              )}
+
+            </section>
+
+
+            {/* =====================
+                SIDE EFFECTS
+            ====================== */}
+
+            <section className="mt-14">
+
+              <div className="mb-7">
+
+                <div className="flex items-center gap-3">
+
+                  <div className="flex h-11 w-11 items-center justify-center rounded-full bg-[#fde1e1] text-[#c45b5b]">
+                    ⚠
+                  </div>
+
+                  <div>
+
+                    <p className="text-xs font-semibold uppercase tracking-wider text-[#b35a5a]">
+                      Things to Consider
+                    </p>
+
+                    <h2 className="text-2xl font-bold text-[#8f3d3d]">
+                      Potential Side Effects
+                    </h2>
+
+                  </div>
+
+                </div>
+
+              </div>
+
+
+              {efekSamping.length > 0 ? (
+
+                <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+
+                  {efekSamping.map((label) => (
+
+                    <div
+                      key={label}
+                      className="group rounded-[1.5rem] border border-[#f2cccc] bg-[#fff5f5] p-6 shadow-[0_12px_35px_rgba(190,70,70,0.07)] transition duration-300 hover:-translate-y-1 hover:border-[#e8b0b0] hover:shadow-[0_18px_40px_rgba(190,70,70,0.12)]"
+                    >
+
+                      <div className="flex h-11 w-11 items-center justify-center rounded-full bg-[#fde1e1] text-[#c45b5b] transition group-hover:scale-105">
+                        ⚠
+                      </div>
+
+                      <h3 className="mt-5 text-base font-semibold text-[#8f3d3d]">
+                        {formatLabel(label)}
+                      </h3>
+
+                    </div>
+
+                  ))}
+
+                </div>
+
+              ) : (
+
+                <div className="rounded-[2rem] border border-[#cce8d6] bg-[#f4fbf6] p-10 text-center">
+
+                  <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-[#dcf4e3] text-[#4d965c]">
+                    ✓
+                  </div>
+
+                  <h3 className="mt-4 font-semibold text-[#315c3a]">
+                    No potential side effects detected
+                  </h3>
+
+                </div>
+
+              )}
+
+            </section>
+
+
+            {/* =====================
+                BACK BUTTON
+            ====================== */}
+
+            <div className="mt-16 text-center">
+
+              <button
+                onClick={() => router.push("/")}
+                className="group inline-flex items-center gap-3 rounded-full bg-[#df6f9d] px-7 py-3.5 text-sm font-semibold text-white shadow-lg shadow-[#df6f9d]/20 transition hover:-translate-y-0.5 hover:bg-[#d45f91]"
+              >
+                Analyze Another Product
+
+                <span className="transition-transform group-hover:translate-x-1">
+                  →
+                </span>
+
+              </button>
+
+              <p className="mt-4 text-xs text-[#a88a96]">
+                Mandali AI · Cosmetic Ingredient Analysis
+              </p>
+
+            </div>
+
+          </div>
+        )}
+
+      </div>
+    </main>
+  );
+}
