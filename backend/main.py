@@ -36,9 +36,20 @@ MODEL_DIR = BASE_DIR / "models"
 # Load Models
 # ==========================================
 
-model = joblib.load(
-    MODEL_DIR / "binary_relevance.pkl"
-)
+# ==========================================
+# Load Models
+# ==========================================
+
+MODEL_URL = "https://huggingface.co/fiyaw/Mandali-model-XGBOOST/resolve/main/binary_relevance.pkl"
+MODEL_PATH = MODEL_DIR / "binary_relevance.pkl"
+
+if not MODEL_PATH.exists():
+    import urllib.request
+
+    print("Downloading binary_relevance.pkl...")
+    urllib.request.urlretrieve(MODEL_URL, MODEL_PATH)
+
+model = joblib.load(MODEL_PATH)
 
 tfidf = joblib.load(
     MODEL_DIR / "tfidf.pkl"
