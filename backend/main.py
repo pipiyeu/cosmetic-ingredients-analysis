@@ -2,8 +2,8 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import joblib
-import numpy as np
 from pathlib import Path
+import urllib.request
 
 
 # ==========================================
@@ -16,13 +16,19 @@ app = FastAPI(
     version="1.0.0"
 )
 
+
+# ==========================================
+# CORS
+# ==========================================
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],
-    allow_credentials=True,
+    allow_origins=["*"],
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
 
 # ==========================================
 # Model Directory
@@ -31,41 +37,67 @@ app.add_middleware(
 BASE_DIR = Path(__file__).resolve().parent
 MODEL_DIR = BASE_DIR / "models"
 
+MODEL_DIR.mkdir(parents=True, exist_ok=True)
+
 
 # ==========================================
-# Load Models
+# Download Binary Relevance Model
 # ==========================================
 
-# ==========================================
-# Load Models
-# ==========================================
+MODEL_URL = (
+    "https://huggingface.co/fiyaw/Mandali-model-XGBOOST/"
+    "resolve/main/binary_relevance.pkl"
+)
 
-MODEL_URL = "https://huggingface.co/fiyaw/Mandali-model-XGBOOST/resolve/main/binary_relevance.pkl"
 MODEL_PATH = MODEL_DIR / "binary_relevance.pkl"
 
+
 if not MODEL_PATH.exists():
-    import urllib.request
-
     print("Downloading binary_relevance.pkl...")
-    urllib.request.urlretrieve(MODEL_URL, MODEL_PATH)
 
-model = joblib.load(MODEL_PATH)
+    urllib.request.urlretrieve(
+        MODEL_URL,
+        MODEL_PATH
+    )
 
-tfidf = joblib.load(
-    MODEL_DIR / "tfidf.pkl"
-)
+    print("binary_relevance.pkl downloaded.")
 
-selected_indices = joblib.load(
-    MODEL_DIR / "selected_idx.pkl"
-)
 
-mlb = joblib.load(
-    MODEL_DIR / "mlb.pkl"
-)
+# ==========================================
+# Load Models
+# ==========================================
 
-label_names = joblib.load(
-    MODEL_DIR / "label_names.pkl"
-)
+print("Loading models...")
+
+try:
+
+    model = joblib.load(
+        MODEL_PATH
+    )
+
+    tfidf = joblib.load(
+        MODEL_DIR / "tfidf.pkl"
+    )
+
+    selected_indices = joblib.load(
+        MODEL_DIR / "selected_idx.pkl"
+    )
+
+    mlb = joblib.load(
+        MODEL_DIR / "mlb.pkl"
+    )
+
+    label_names = joblib.load(
+        MODEL_DIR / "label_names.pkl"
+    )
+
+    print("All models loaded successfully.")
+
+except Exception as e:
+
+    print(f"Model loading error: {e}")
+
+    raise
 
 
 # ==========================================
@@ -82,8 +114,22 @@ class IngredientRequest(BaseModel):
 
 @app.get("/")
 def root():
+
     return {
-        "message": "Mandali API is running"
+        "message": "Mandali API is running",
+        "status": "success"
+    }
+
+
+# ==========================================
+# Health Check
+# ==========================================
+
+@app.get("/health")
+def health():
+
+    return {
+        "status": "healthy"
     }
 
 
@@ -95,6 +141,7 @@ def root():
 def predict(data: IngredientRequest):
 
     if not data.ingredients.strip():
+
         raise HTTPException(
             status_code=400,
             detail="Ingredients cannot be empty."
@@ -102,42 +149,74 @@ def predict(data: IngredientRequest):
 
     ingredients = data.ingredients.strip()
 
-    # ======================================
-    # 1. TF-IDF Transformation
-    # ======================================
+    try:
 
-    X_tfidf = tfidf.transform([ingredients])
+        # ==================================
+        # 1. TF-IDF
+        # ==================================
 
-    # ======================================
-    # 2. Feature Selection
-    # ======================================
+        X_tfidf = tfidf.transform(
+            [ingredients]
+        )
 
-    X_selected = X_tfidf[:, selected_indices]
 
-    # ======================================
-    # 3. Binary Relevance Prediction
-    # ======================================
+        # ==================================
+        # 2. Feature Selection
+        # ==================================
 
-    prediction = model.predict(X_selected)
+        X_selected = X_tfidf[
+            :,
+            selected_indices
+        ]
 
-    # BinaryRelevance menghasilkan sparse matrix
-    prediction = prediction.toarray()
 
-    # ======================================
-    # 4. Convert Prediction to Labels
-    # ======================================
+        # ==================================
+        # 3. Prediction
+        # ==================================
 
-    predicted_labels = []
+        prediction = model.predict(
+            X_selected
+        )
 
-    for i, value in enumerate(prediction[0]):
-        if value == 1:
-            predicted_labels.append(label_names[i])
 
-    # ======================================
-    # 5. Response
-    # ======================================
+        # ==================================
+        # 4. Convert Sparse Matrix
+        # ==================================
 
-    return {
-        "ingredients": ingredients,
-        "predictions": predicted_labels
-    }
+        if hasattr(prediction, "toarray"):
+
+            prediction = prediction.toarray()
+
+
+        # ==================================
+        # 5. Convert to Labels
+        # ==================================
+
+        predicted_labels = []
+
+        for i, value in enumerate(prediction[0]):
+
+            if value == 1:
+
+                predicted_labels.append(
+                    label_names[i]
+                )
+
+
+        # ==================================
+        # 6. Response
+        # ==================================
+
+        return {
+            "ingredients": ingredients,
+            "predictions": predicted_labels
+        }
+
+    except Exception as e:
+
+        print(f"Prediction error: {e}")
+
+        raise HTTPException(
+            status_code=500,
+            detail="Prediction failed."
+        )
