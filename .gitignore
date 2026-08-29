@@ -49,3 +49,7 @@ backend/**/__pycache__/
 *.pyc
 *.pyo
 backend/models/binary_relevance.pkl
+
+backend/models/
+AGENTS.md
+CLAUDE.md
