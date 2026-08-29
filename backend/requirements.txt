@@ -2,7 +2,9 @@ fastapi
 uvicorn
 pydantic
 joblib
-scikit-learn
+scikit-learn==1.7.2
+scikit-multilearn
 xgboost
 pandas
 numpy
+gradio
