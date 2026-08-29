@@ -52,7 +52,7 @@ function AnalyzerContent() {
         setLoading(true);
         setError("");
 
-        const response = await fetch("/api/backend/predict", {
+        const response = await fetch("/api/predict", {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
