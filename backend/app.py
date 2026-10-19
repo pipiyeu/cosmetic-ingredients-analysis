@@ -5,7 +5,7 @@ import joblib
 from pathlib import Path
 import urllib.request
 import tempfile
-import gradio as gr
+
 
 
 # =========================================================
@@ -251,14 +251,3 @@ def predict(data: IngredientRequest):
         "ingredients": ingredients,
         "predictions": predicted_labels
     }
-
-
-# =========================================================
-# GRADIO MOUNT (WAJIB UNTUK HUGGINGFACE SPACES)
-# =========================================================
-
-with gr.Blocks(title="Mandali API") as demo:
-    gr.Markdown("# 🚀 Mandali API is Live!")
-    gr.Markdown("FastAPI backend aktif dan siap menerima request dari Next.js pada endpoint `/api/predict`.")
-
-app = gr.mount_gradio_app(app, demo, path="/")
