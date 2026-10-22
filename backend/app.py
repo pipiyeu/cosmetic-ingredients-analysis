@@ -3,12 +3,6 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import joblib
 from pathlib import Path
-import urllib.request
-import tempfile
-
-# =========================================================
-# FastAPI
-# =========================================================
 
 app = FastAPI(
     title="Mandali API",
@@ -16,150 +10,93 @@ app = FastAPI(
     version="1.0.0",
 )
 
-# =========================================================
-# CORS
-# =========================================================
-
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:3000",
-        "https://cosmetic-ingredients-analysis.vercel.app",
-        "*",
-    ],
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# =========================================================
-# DIRECTORY
-# =========================================================
-
 BASE_DIR = Path(__file__).resolve().parent
 MODEL_DIR = BASE_DIR / "models"
 
-# =========================================================
-# MODEL URL
-# =========================================================
+# Lazy Loading Container
+_model = None
+_tfidf = None
+_selected_features = None
+_mlb = None
+_label_names = None
 
-MODEL_URL = (
-    "https://huggingface.co/fiyaw/Mandali-model-XGBOOST/"
-    "resolve/main/binary_relevance.pkl"
-)
+def get_model():
+    global _model
+    if _model is None:
+        _model = joblib.load(MODEL_DIR / "binary_relevance.pkl")
+    return _model
 
-# =========================================================
-# LOAD BINARY RELEVANCE MODEL
-# =========================================================
+def get_tfidf():
+    global _tfidf
+    if _tfidf is None:
+        _tfidf = joblib.load(MODEL_DIR / "tfidf.pkl")
+    return _tfidf
 
-MODEL_PATH = MODEL_DIR / "binary_relevance.pkl"
+def get_selected_features():
+    global _selected_features
+    if _selected_features is None:
+        _selected_features = joblib.load(MODEL_DIR / "selected_features.pkl")
+    return _selected_features
 
-def load_binary_relevance_model():
-    if MODEL_PATH.exists():
-        print("Loading binary_relevance.pkl from local models folder...")
-        return joblib.load(MODEL_PATH)
+def get_mlb():
+    global _mlb
+    if _mlb is None:
+        _mlb = joblib.load(MODEL_DIR / "mlb.pkl")
+    return _mlb
 
-    temp_path = Path(tempfile.gettempdir()) / "binary_relevance.pkl"
-
-    if not temp_path.exists():
-        print("Downloading binary_relevance.pkl...")
-        try:
-            urllib.request.urlretrieve(MODEL_URL, temp_path)
-            print("binary_relevance.pkl downloaded.")
-        except Exception as error:
-            raise RuntimeError(
-                f"Failed to download binary_relevance.pkl: {error}"
-            )
-
-    return joblib.load(temp_path)
-
-# =========================================================
-# LOAD ALL MODELS
-# =========================================================
-
-print("Loading Mandali models...")
-
-model = load_binary_relevance_model()
-tfidf = joblib.load(MODEL_DIR / "tfidf.pkl")
-selected_indices = joblib.load(MODEL_DIR / "selected_idx.pkl")
-mlb = joblib.load(MODEL_DIR / "mlb.pkl")
-label_names = joblib.load(MODEL_DIR / "label_names.pkl")
-
-print("All models loaded successfully.")
-
-# =========================================================
-# REQUEST SCHEMA
-# =========================================================
+def get_label_names():
+    global _label_names
+    if _label_names is None:
+        _label_names = joblib.load(MODEL_DIR / "label_names.pkl")
+    return _label_names
 
 class IngredientRequest(BaseModel):
     ingredients: str
 
-# =========================================================
-# ROOT ENDPOINT
-# =========================================================
-
 @app.get("/api")
 def root():
-    return {
-        "message": "Mandali API is running"
-    }
-
-# =========================================================
-# HEALTH CHECK
-# =========================================================
+    return {"message": "Mandali API is running"}
 
 @app.get("/api/health")
 def health():
-    return {
-        "status": "ok",
-        "service": "Mandali API"
-    }
-
-# =========================================================
-# PREDICTION ENDPOINT
-# =========================================================
+    return {"status": "ok", "service": "Mandali API"}
 
 @app.post("/api/predict")
 def predict(data: IngredientRequest):
     if not data.ingredients or not data.ingredients.strip():
-        raise HTTPException(
-            status_code=400,
-            detail="Ingredients cannot be empty."
-        )
+        raise HTTPException(status_code=400, detail="Ingredients cannot be empty.")
 
     ingredients = data.ingredients.strip()
 
     try:
-        X_tfidf = tfidf.transform([ingredients])
-    except Exception as error:
-        raise HTTPException(
-            status_code=500,
-            detail=f"TF-IDF transformation failed: {error}"
-        )
+        tfidf_inst = get_tfidf()
+        selected_features_inst = get_selected_features()
+        model_inst = get_model()
+        label_names_inst = get_label_names()
 
-    try:
-        X_selected = X_tfidf[:, selected_indices]
-    except Exception as error:
-        raise HTTPException(
-            status_code=500,
-            detail=f"Feature selection failed: {error}"
-        )
+        X_tfidf = tfidf_inst.transform([ingredients])
+        X_selected = X_tfidf[:, selected_features_inst]
 
-    try:
-        prediction = model.predict(X_selected)
+        prediction = model_inst.predict(X_selected)
         if hasattr(prediction, "toarray"):
             prediction = prediction.toarray()
+
     except Exception as error:
-        raise HTTPException(
-            status_code=500,
-            detail=f"Prediction failed: {error}"
-        )
+        raise HTTPException(status_code=500, detail=f"Prediction pipeline failed: {error}")
 
     predicted_labels = []
     for index, value in enumerate(prediction[0]):
         if value == 1:
-            if index < len(label_names):
-                predicted_labels.append(str(label_names[index]))
+            if index < len(label_names_inst):
+                predicted_labels.append(str(label_names_inst[index]))
 
     return {
         "ingredients": ingredients,
